@@ -50,6 +50,7 @@ if (width < 1 || height < 1 || width > 1024 || height > 1024) {
 fs.mkdirSync(outDir, { recursive: true });
 fs.copyFileSync(sourcePath, targetPath);
 
+// Guard against a silent partial copy: the written file must match byte for byte.
 const written = fs.statSync(targetPath).size;
 if (written !== size) fail("copied entry.png is " + written + " bytes, expected " + size);
 
