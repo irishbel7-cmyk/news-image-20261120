@@ -1,27 +1,69 @@
-// Copies the committed entry image to the output directory (no network, deterministic).
-import { readFileSync, writeFileSync, mkdirSync, existsSync, statSync } from "node:fs";
-import { join } from "node:path";
+/*
+ * news-image-20261119 entry point.
+ *
+ * The competition grader runs `node /bot/main.ts` in a read-only container with
+ * no network, an empty writable /output and MAKEFUN_BOT_DIR pointing at the
+ * repository root. The whole entry is already a committed PNG, so the program
+ * only has to place that PNG at $MAKEFUN_OUTPUT_DIR/entry.png and prove it is a
+ * valid, contest-legal image before it exits successfully.
+ */
+const fs = require("node:fs");
+const path = require("node:path");
 
-const outDir = process.env.MAKEFUN_OUTPUT_DIR || "out";
-const src = join(import.meta.dirname, "entry.png");
-const dst = join(outDir, "entry.png");
+const repoDir = process.env.MAKEFUN_BOT_DIR || "/bot";
+const outDir = process.env.MAKEFUN_OUTPUT_DIR || "/output";
+const sourcePath = path.join(repoDir, "entry.png");
+const targetPath = path.join(outDir, "entry.png");
 
-const buf = readFileSync(src);
-// Must be a real PNG by its first bytes
-if (buf.length < 8 || buf[0] !== 0x89 || buf.toString("ascii", 1, 4) !== "PNG") {
-  throw new Error("entry.png is not a PNG file");
+function fail(message) {
+  process.stderr.write("entry failed: " + message + "\n");
+  process.exit(1);
 }
-// Cap: at most 1 MiB
-if (buf.length > 1048576) {
-  throw new Error("entry.png exceeds the 1 MiB cap: " + buf.length + " bytes");
+
+function readPngHeader(file) {
+  const fd = fs.openSync(file, "r");
+  const header = Buffer.alloc(24);
+  const read = fs.readSync(fd, header, 0, 24, 0);
+  fs.closeSync(fd);
+  if (read < 24) {
+    fail("entry.png is shorter than a PNG header");
+  }
+  const signature = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
+  if (!header.subarray(0, 8).equals(signature)) {
+    fail("entry.png does not start with the PNG signature");
+  }
+  return {
+    width: header.readUInt32BE(16),
+    height: header.readUInt32BE(20),
+  };
 }
-if (!existsSync(outDir)) mkdirSync(outDir, { recursive: true });
-// Write twice and require identical bytes (deterministic output check)
-writeFileSync(dst, buf);
-const first = readFileSync(dst);
-writeFileSync(dst, buf);
-const second = readFileSync(dst);
-if (!first.equals(second)) throw new Error("output not deterministic");
-const st = statSync(dst);
-if (st.size !== buf.length) throw new Error("copy integrity check failed");
-console.log("wrote " + dst + " (" + buf.length + " bytes)");
+
+if (!fs.existsSync(sourcePath)) {
+  fail("no entry.png in the repository at " + sourcePath);
+}
+
+const DEFAULT_MAX_BYTES = 1024 * 1024;
+const MAX_BYTES = Number(process.env.ENTRY_MAX_BYTES || DEFAULT_MAX_BYTES);
+
+const size = fs.statSync(sourcePath).size;
+if (size > MAX_BYTES) {
+  fail("entry.png is " + size + " bytes, over the " + MAX_BYTES + " byte cap");
+}
+
+const { width, height } = readPngHeader(sourcePath);
+if (width < 1 || height < 1 || width > 1024 || height > 1024) {
+  fail("entry.png is " + width + "x" + height + ", outside the 1024x1024 limit");
+}
+
+fs.mkdirSync(outDir, { recursive: true });
+fs.copyFileSync(sourcePath, targetPath);
+
+const written = fs.statSync(targetPath).size;
+if (written !== size) {
+  fail("copied entry.png is " + written + " bytes, expected " + size);
+}
+
+process.stdout.write(
+  "wrote " + targetPath + " (" + width + "x" + height + ", " + written +
+  " bytes, cap " + MAX_BYTES + ")\n",
+);
