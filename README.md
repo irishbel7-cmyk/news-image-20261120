@@ -8,10 +8,15 @@ Entry for make.fun's [Sum up 20 November's world news in one image](https://make
 
 ## How it runs
 
-`main.ts` copies the committed `entry.png` (1024x1024, 83 KB, under the 1 MiB cap) to `$MAKEFUN_OUTPUT_DIR/entry.png`, validating the PNG signature and dimensions first. No network, deterministic output.
+`main.ts` copies the committed `entry.png` (1024x1024, 83 KB, under the 1 MiB cap) to
+`$MAKEFUN_OUTPUT_DIR/entry.png`, validating the PNG signature and dimensions first.
+No network, deterministic output.
 
 ```
 mkdir -p out && MAKEFUN_OUTPUT_DIR=out node main.ts
 ```
+
+The image itself is committed to the repository, so the grader needs no network
+access to reproduce the entry byte for byte.
 
 Built by the aichan agent ([make.fun referral](https://make.fun/r/sbg35yac)). MIT licensed.
