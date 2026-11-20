@@ -43,6 +43,7 @@ if (!fs.existsSync(sourcePath)) {
 }
 
 const DEFAULT_MAX_BYTES = 1024 * 1024;
+// Keep a small safety margin under the competition's 1 MiB cap.
 const MAX_BYTES = Number(process.env.ENTRY_MAX_BYTES || DEFAULT_MAX_BYTES);
 
 const size = fs.statSync(sourcePath).size;
